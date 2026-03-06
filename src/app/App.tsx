@@ -65,18 +65,18 @@ export default function App() {
         content: `I received your message: \"${content}\"\n\nThis is a demo interface, so I'm providing a mock response. In a real implementation, this would be connected to an AI model API to generate intelligent responses based on your input.`,
         sources: [
           {
-            title: 'Example Source 1 - Documentation',
-            url: 'https://example.com/doc1',
+            title: 'Document from Knowledge Base',
+            url: '/knowledge/example-document-1.pdf',
             snippet: 'This is a relevant snippet from the first source that provides context...',
           },
           {
-            title: 'Example Source 2 - Research Paper',
-            url: 'https://example.com/doc2',
+            title: 'Research Paper - Knowledge Base',
+            url: '/knowledge/research-paper-2.pdf',
             snippet: 'Additional information from academic research on this topic...',
           },
           {
-            title: 'Example Source 3 - Tutorial',
-            url: 'https://example.com/doc3',
+            title: 'Tutorial Guide',
+            url: '/knowledge/tutorial-guide-3.pdf',
           },
         ],
         relatedQuestions: [
