@@ -9,6 +9,12 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  sources?: Array<{
+    title: string;
+    url: string;
+    snippet?: string;
+  }>;
+  relatedQuestions?: string[];
 }
 
 export default function App() {
@@ -47,7 +53,29 @@ export default function App() {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `I received your message: "${content}"\n\nThis is a demo interface, so I'm providing a mock response. In a real implementation, this would be connected to an AI model API to generate intelligent responses based on your input.`,
+        content: `I received your message: \"${content}\"\n\nThis is a demo interface, so I'm providing a mock response. In a real implementation, this would be connected to an AI model API to generate intelligent responses based on your input.`,
+        sources: [
+          {
+            title: 'Example Source 1 - Documentation',
+            url: 'https://example.com/doc1',
+            snippet: 'This is a relevant snippet from the first source that provides context...',
+          },
+          {
+            title: 'Example Source 2 - Research Paper',
+            url: 'https://example.com/doc2',
+            snippet: 'Additional information from academic research on this topic...',
+          },
+          {
+            title: 'Example Source 3 - Tutorial',
+            url: 'https://example.com/doc3',
+          },
+        ],
+        relatedQuestions: [
+          'How does this concept apply to real-world scenarios?',
+          'What are the best practices for implementation?',
+          'Can you explain the differences between similar approaches?',
+          'What are common pitfalls to avoid?',
+        ],
       };
       setMessages((prev) => [...prev, assistantMessage]);
       setIsLoading(false);
@@ -130,6 +158,9 @@ export default function App() {
                 key={message.id}
                 role={message.role}
                 content={message.content}
+                sources={message.sources}
+                relatedQuestions={message.relatedQuestions}
+                onQuestionClick={handleSendMessage}
               />
             ))}
             {isLoading && (
