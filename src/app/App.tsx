@@ -3,12 +3,18 @@ import { Sidebar } from './components/Sidebar';
 import { ChatMessage } from './components/ChatMessage';
 import { MessageInput } from './components/MessageInput';
 import { Menu } from 'lucide-react';
-import logo from 'figma:asset/dfe81da5e0aedbd29345b7e3003def48603b40a7.png';
+import logo from '../assets/dfe81da5e0aedbd29345b7e3003def48603b40a7.png';
+import { nanoid } from 'nanoid';
+import { parseStreaming } from './utils/parse-streaming';
+import type { Source, Relate } from './utils/parse-streaming';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  sources?: Source[];
+  relates?: Relate[] | null;
+  isStreaming?: boolean;
 }
 
 export default function App() {
@@ -16,13 +22,15 @@ export default function App() {
     {
       id: '1',
       role: 'assistant',
-      content: "Hello! I'm an AI assistant. How can I help you today?",
+      content: "Hello! I'm ECEasy, your HKUST ECE assistant. How can I help you today?",
     },
   ]);
   const [currentChatId, setCurrentChatId] = useState('1');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Keep a ref to the active AbortController so we can cancel if needed
+  const abortRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -33,48 +41,112 @@ export default function App() {
   }, [messages]);
 
   const handleSendMessage = async (content: string) => {
+    if (!content.trim() || isLoading) return;
+
+    // Cancel any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     // Add user message
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: nanoid(),
       role: 'user',
       content,
     };
-    setMessages((prev) => [...prev, userMessage]);
+
+    // Add a placeholder assistant message that will be updated as tokens arrive
+    const assistantId = nanoid();
+    const assistantPlaceholder: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      sources: [],
+      relates: null,
+      isStreaming: true,
+    };
+
+    setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `I received your message: "${content}"\n\nThis is a demo interface, so I'm providing a mock response. In a real implementation, this would be connected to an AI model API to generate intelligent responses based on your input.`,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setIsLoading(false);
-    }, 1000);
+    const searchUuid = nanoid();
+
+    try {
+      await parseStreaming(
+        controller,
+        content,
+        searchUuid,
+        // onSources — called once the sources JSON is received
+        (sources) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, sources } : m))
+          );
+        },
+        // onMarkdown — called on every new chunk of LLM text
+        (markdown) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: markdown } : m))
+          );
+          scrollToBottom();
+        },
+        // onRelates — called once the stream finishes
+        (relates) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, relates, isStreaming: false } : m
+            )
+          );
+          setIsLoading(false);
+        },
+        // onError
+        (status) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content:
+                      status === 429
+                        ? 'Sorry, too many requests. Please try again later.'
+                        : `Sorry, an error occurred (HTTP ${status}). Please try again.`,
+                    isStreaming: false,
+                  }
+                : m
+            )
+          );
+          setIsLoading(false);
+        },
+      );
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: 'Sorry, something went wrong. Please try again.', isStreaming: false }
+              : m
+          )
+        );
+        setIsLoading(false);
+      }
+    }
   };
 
   const handleNewChat = () => {
+    abortRef.current?.abort();
+    setIsLoading(false);
     setMessages([
       {
-        id: Date.now().toString(),
+        id: nanoid(),
         role: 'assistant',
-        content: "Hello! I'm an AI assistant. How can I help you today?",
+        content: "Hello! I'm ECEasy, your HKUST ECE assistant. How can I help you today?",
       },
     ]);
-    setCurrentChatId(Date.now().toString());
+    setCurrentChatId(nanoid());
   };
 
   const handleSelectChat = (chatId: string) => {
     setCurrentChatId(chatId);
-    // In a real app, you would load the messages for the selected chat
-    setMessages([
-      {
-        id: '1',
-        role: 'assistant',
-        content: `This is the chat history for conversation ${chatId}. In a real implementation, messages would be loaded from storage.`,
-      },
-    ]);
+    // Sidebar history is a future feature — for now just acknowledge selection
   };
 
   return (
@@ -94,10 +166,10 @@ export default function App() {
           isSidebarOpen ? 'ml-64' : 'ml-0'
         }`}
       >
-        {/* Header with toggle button */}
+        {/* Header */}
         <div className="border-b border-amber-200 bg-white/95 backdrop-blur-sm">
           <div className="w-full px-4 py-3 flex items-center justify-between">
-            {/* Left: Logo and Toggle */}
+            {/* Left: Toggle + Logo */}
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -109,7 +181,7 @@ export default function App() {
               <img src={logo} alt="ECEasy" className="h-12" />
             </div>
 
-            {/* Center: App Name */}
+            {/* Centre: App Name */}
             <div className="absolute left-1/2 transform -translate-x-1/2">
               <h1 className="text-2xl font-bold">
                 <span style={{ color: '#1e3a8a' }}>EC</span>
@@ -117,8 +189,8 @@ export default function App() {
               </h1>
             </div>
 
-            {/* Right: Spacer for balance */}
-            <div className="w-[88px]"></div>
+            {/* Right: balance spacer */}
+            <div className="w-[88px]" />
           </div>
         </div>
 
@@ -130,17 +202,23 @@ export default function App() {
                 key={message.id}
                 role={message.role}
                 content={message.content}
+                sources={message.sources}
+                relates={message.relates}
+                isStreaming={message.isStreaming}
+                onRelatedQuestion={(q) => handleSendMessage(q)}
               />
             ))}
-            {isLoading && (
-              <div className="flex gap-4 px-4 py-6 bg-white">
+
+            {/* Initial loading indicator (before first token arrives) */}
+            {isLoading && messages[messages.length - 1]?.content === '' && (
+              <div className="flex gap-4 px-4 py-6 bg-amber-50">
                 <div className="max-w-4xl mx-auto w-full flex gap-4">
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-amber-500 to-yellow-500">
                       <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                     </div>
                   </div>
-                  <div className="flex-1 min-w-0 pt-1">
+                  <div className="flex-1 min-w-0 pt-3">
                     <div className="flex gap-1">
                       <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                       <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -150,6 +228,7 @@ export default function App() {
                 </div>
               </div>
             )}
+
             <div ref={messagesEndRef} />
           </div>
         </div>
@@ -160,3 +239,5 @@ export default function App() {
     </div>
   );
 }
+
+

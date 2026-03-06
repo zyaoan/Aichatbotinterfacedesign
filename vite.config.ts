@@ -1,7 +1,10 @@
 import { defineConfig } from 'vite'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   plugins: [
@@ -15,6 +18,15 @@ export default defineConfig({
       // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
     },
+  },
+
+  // Base public path — must match where the backend serves it (/newUI/)
+  base: '/newUI/',
+
+  build: {
+    // Output directly into ECEasy/newUI/ so the backend can serve it
+    outDir: path.resolve(__dirname, '../../newUI'),
+    emptyOutDir: true,
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
