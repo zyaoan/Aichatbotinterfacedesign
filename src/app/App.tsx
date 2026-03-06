@@ -29,6 +29,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -48,8 +49,16 @@ export default function App() {
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
+
     // Simulate AI response
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
+      if (abortControllerRef.current?.signal.aborted) {
+        setIsLoading(false);
+        return;
+      }
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -79,7 +88,21 @@ export default function App() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
       setIsLoading(false);
-    }, 1000);
+      abortControllerRef.current = null;
+    }, 2000);
+
+    // Listen for abort signal
+    abortControllerRef.current.signal.addEventListener('abort', () => {
+      clearTimeout(timeoutId);
+      setIsLoading(false);
+    });
+  };
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
   };
 
   const handleNewChat = () => {
@@ -186,7 +209,12 @@ export default function App() {
         </div>
 
         {/* Input Area */}
-        <MessageInput onSendMessage={handleSendMessage} disabled={isLoading} />
+        <MessageInput 
+          onSendMessage={handleSendMessage} 
+          disabled={isLoading}
+          isLoading={isLoading}
+          onStopGeneration={handleStopGeneration}
+        />
       </div>
     </div>
   );
