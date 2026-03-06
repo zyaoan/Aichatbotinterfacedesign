@@ -3,7 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatMessage } from './components/ChatMessage';
 import { MessageInput } from './components/MessageInput';
 import { Menu } from 'lucide-react';
-import logo from 'figma:asset/dfe81da5e0aedbd29345b7e3003def48603b40a7.png';
+import logo from '../imports/logo_noname_(1).svg';
 
 interface Message {
   id: string;
@@ -157,7 +157,8 @@ export default function App() {
               >
                 <Menu size={20} />
               </button>
-              <img src={logo} alt="ECEasy" className="h-12" />
+              {/* Logo placeholder - Replace with your logo.png */}
+              <img className="h-12 w-12" src={logo} alt="Logo" />
             </div>
 
             {/* Center: App Name */}
