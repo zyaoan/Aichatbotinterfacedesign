@@ -1,12 +1,14 @@
-import { Send, Paperclip, X } from 'lucide-react';
+import { Send, Paperclip, X, Square } from 'lucide-react';
 import { useState, KeyboardEvent, useRef } from 'react';
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
   disabled?: boolean;
+  isLoading?: boolean;
+  onStopGeneration?: () => void;
 }
 
-export function MessageInput({ onSendMessage, disabled }: MessageInputProps) {
+export function MessageInput({ onSendMessage, disabled, isLoading, onStopGeneration }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,17 +109,29 @@ export function MessageInput({ onSendMessage, disabled }: MessageInputProps) {
               target.style.height = target.scrollHeight + 'px';
             }}
           />
-          <button
-            onClick={handleSend}
-            disabled={(!message.trim() && uploadedFiles.length === 0) || disabled}
-            className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
-              (message.trim() || uploadedFiles.length > 0) && !disabled
-                ? 'bg-amber-600 text-white hover:bg-amber-700'
-                : 'bg-amber-300 text-amber-500 cursor-not-allowed'
-            }`}
-          >
-            <Send size={18} />
-          </button>
+          
+          {/* Send or Stop Button */}
+          {isLoading ? (
+            <button
+              onClick={onStopGeneration}
+              className="flex-shrink-0 p-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+              title="Stop generation"
+            >
+              <Square size={18} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={(!message.trim() && uploadedFiles.length === 0) || disabled}
+              className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
+                (message.trim() || uploadedFiles.length > 0) && !disabled
+                  ? 'bg-amber-600 text-white hover:bg-amber-700'
+                  : 'bg-amber-300 text-amber-500 cursor-not-allowed'
+              }`}
+            >
+              <Send size={18} />
+            </button>
+          )}
         </div>
         <div className="text-xs text-gray-500 text-center mt-2">
           Press Enter to send, Shift + Enter for new line
