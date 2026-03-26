@@ -1,10 +1,19 @@
-# ECEasy Frontend
+# ECEasy Frontend - AI Chatbot Interface
 
-Modern AI chatbot interface for ECEasy - An intelligent assistant designed specifically for ECE students to handle inter-department queries with advanced RAG (Retrieval-Augmented Generation) capabilities.
+> 🎯 **Ready-to-use chatbot UI template** with streaming responses, LLM selection, file uploads, and beautiful design. Built with React, TypeScript, and Tailwind CSS.
 
-![ECEasy](https://img.shields.io/badge/React-18-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Tailwind](https://img.shields.io/badge/Tailwind-4.0-blue)
+A modern, production-ready chatbot interface designed for the ECEasy AI assistant. This template integrates seamlessly with FastAPI backends and includes all features needed for a professional AI chatbot application.
 
-## Features
+## ✨ Use as Template
+
+**Want to use this for your own chatbot project?** See [TEMPLATE_USAGE.md](./TEMPLATE_USAGE.md) for quick setup!
+
+```bash
+# Quick start: Create a new chatbot project
+./create-new-chatbot.sh my-awesome-chatbot
+```
+
+## 🎯 Key Features
 
 ### 🎨 Modern UI/UX
 - **Warm Amber Theme**: Professional warm color palette with amber backgrounds
