@@ -1,4 +1,6 @@
 import { Plus, MessageSquare, Menu, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { apiService } from '../../services/api.service';
 
 interface Chat {
   id: string;
@@ -15,16 +17,59 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onNewChat, currentChatId, onSelectChat, isOpen, setIsOpen }: SidebarProps) {
-  // Mock chat history
-  const chats: Chat[] = [
-    { id: '1', title: 'React best practices', timestamp: 'Today' },
-    { id: '2', title: 'AI model comparison', timestamp: 'Today' },
-    { id: '3', title: 'CSS grid layout help', timestamp: 'Yesterday' },
-    { id: '4', title: 'Python data structures', timestamp: 'Yesterday' },
-    { id: '5', title: 'Machine learning basics', timestamp: 'Feb 12' },
-    { id: '6', title: 'API design patterns', timestamp: 'Feb 11' },
-    { id: '7', title: 'Database optimization', timestamp: 'Feb 10' },
-  ];
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+
+  // Load chat sessions from backend on mount
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const loadSessions = async () => {
+    setIsLoadingSessions(true);
+    try {
+      const sessions = await apiService.getSessions();
+      
+      // Convert sessions to Chat format with formatted timestamps
+      const formattedChats: Chat[] = sessions.map((session) => ({
+        id: session.id,
+        title: session.title || 'Untitled Chat',
+        timestamp: formatTimestamp(session.timestamp),
+      }));
+      
+      setChats(formattedChats);
+    } catch (error) {
+      console.error('Error loading sessions:', error);
+      
+      // Use mock data as fallback if backend is not available
+      setChats([
+        { id: '1', title: 'ECE course prerequisites', timestamp: 'Today' },
+        { id: '2', title: 'Department requirements', timestamp: 'Today' },
+        { id: '3', title: 'Program information', timestamp: 'Yesterday' },
+      ]);
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  };
+
+  const formatTimestamp = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const handleNewChat = () => {
+    onNewChat();
+    // Reload sessions after creating new chat
+    setTimeout(() => loadSessions(), 500);
+  };
 
   return (
     <>
@@ -37,7 +82,7 @@ export function Sidebar({ onNewChat, currentChatId, onSelectChat, isOpen, setIsO
         {/* New Chat Button */}
         <div className="p-3 border-b border-amber-200">
           <button
-            onClick={onNewChat}
+            onClick={handleNewChat}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-100 hover:bg-amber-200 transition-colors text-gray-900"
           >
             <Plus size={18} />
@@ -47,26 +92,30 @@ export function Sidebar({ onNewChat, currentChatId, onSelectChat, isOpen, setIsO
 
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {chats.map((chat) => (
-            <button
-              key={chat.id}
-              onClick={() => {
-                onSelectChat(chat.id);
-                if (window.innerWidth < 1024) setIsOpen(false);
-              }}
-              className={`w-full flex items-start gap-3 px-3 py-3 rounded-lg transition-colors text-left ${
-                currentChatId === chat.id
-                  ? 'bg-amber-100 text-gray-900'
-                  : 'text-gray-600 hover:bg-amber-100/50 hover:text-gray-900'
-              }`}
-            >
-              <MessageSquare size={18} className="mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="truncate text-sm">{chat.title}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{chat.timestamp}</div>
-              </div>
-            </button>
-          ))}
+          {isLoadingSessions ? (
+            <div className="text-center text-gray-500">Loading...</div>
+          ) : (
+            chats.map((chat) => (
+              <button
+                key={chat.id}
+                onClick={() => {
+                  onSelectChat(chat.id);
+                  if (window.innerWidth < 1024) setIsOpen(false);
+                }}
+                className={`w-full flex items-start gap-3 px-3 py-3 rounded-lg transition-colors text-left ${
+                  currentChatId === chat.id
+                    ? 'bg-amber-100 text-gray-900'
+                    : 'text-gray-600 hover:bg-amber-100/50 hover:text-gray-900'
+                }`}
+              >
+                <MessageSquare size={18} className="mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="truncate text-sm">{chat.title}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{chat.timestamp}</div>
+                </div>
+              </button>
+            ))
+          )}
         </div>
 
         {/* User Section */}

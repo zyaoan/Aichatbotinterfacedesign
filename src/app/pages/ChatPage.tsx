@@ -4,6 +4,7 @@ import { ChatMessage } from '../components/ChatMessage';
 import { MessageInput } from '../components/MessageInput';
 import { Menu } from 'lucide-react';
 import logo from '../../imports/logo_noname_(1).svg';
+import { apiService, StreamChunk } from '../../services/api.service';
 
 interface Message {
   id: string;
@@ -15,6 +16,7 @@ interface Message {
     snippet?: string;
   }>;
   relatedQuestions?: string[];
+  isStreaming?: boolean;
 }
 
 export function ChatPage() {
@@ -22,10 +24,11 @@ export function ChatPage() {
     {
       id: '1',
       role: 'assistant',
-      content: "Hello! I'm an AI assistant. How can I help you today?",
+      content: "Hello! I'm ECEasy, your AI assistant for ECE students. How can I help you today?",
     },
   ]);
   const [currentChatId, setCurrentChatId] = useState('1');
+  const [sessionId, setSessionId] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -39,7 +42,7 @@ export function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, files?: File[]) => {
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -49,83 +52,163 @@ export function ChatPage() {
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
+    // Create placeholder for assistant response
+    const assistantId = (Date.now() + 1).toString();
+    const assistantMessage: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      isStreaming: true,
+    };
+    setMessages((prev) => [...prev, assistantMessage]);
+
     // Create new abort controller
     abortControllerRef.current = new AbortController();
 
-    // Simulate AI response
-    const timeoutId = setTimeout(() => {
-      if (abortControllerRef.current?.signal.aborted) {
-        setIsLoading(false);
-        return;
-      }
+    try {
+      // Send message to API with streaming
+      await apiService.sendMessage(
+        {
+          message: content,
+          sessionId: sessionId,
+          files: files,
+        },
+        (chunk: StreamChunk) => {
+          // Update the assistant message based on chunk type
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id !== assistantId) return msg;
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `I received your message: \"${content}\"\n\nThis is a demo interface, so I'm providing a mock response. In a real implementation, this would be connected to an AI model API to generate intelligent responses based on your input.`,
-        sources: [
-          {
-            title: 'Document from Knowledge Base',
-            url: '/knowledge/example-document-1.pdf',
-            snippet: 'This is a relevant snippet from the first source that provides context...',
-          },
-          {
-            title: 'Research Paper - Knowledge Base',
-            url: '/knowledge/research-paper-2.pdf',
-            snippet: 'Additional information from academic research on this topic...',
-          },
-          {
-            title: 'Tutorial Guide',
-            url: '/knowledge/tutorial-guide-3.pdf',
-          },
-        ],
-        relatedQuestions: [
-          'How does this concept apply to real-world scenarios?',
-          'What are the best practices for implementation?',
-          'Can you explain the differences between similar approaches?',
-          'What are common pitfalls to avoid?',
-        ],
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+              const updated = { ...msg };
+
+              if (chunk.type === 'text' && chunk.content) {
+                updated.content += chunk.content;
+              } else if (chunk.type === 'sources' && chunk.sources) {
+                updated.sources = chunk.sources.map((src) => ({
+                  title: src.title,
+                  url: src.metadata?.source || '#',
+                  snippet: src.content,
+                }));
+              } else if (chunk.type === 'related' && chunk.relatedQuestions) {
+                updated.relatedQuestions = chunk.relatedQuestions;
+              } else if (chunk.type === 'done') {
+                updated.isStreaming = false;
+              }
+
+              return updated;
+            })
+          );
+        }
+      );
+
       setIsLoading(false);
       abortControllerRef.current = null;
-    }, 2000);
-
-    // Listen for abort signal
-    abortControllerRef.current.signal.addEventListener('abort', () => {
-      clearTimeout(timeoutId);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      
+      // Update assistant message with error
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== assistantId) return msg;
+          return {
+            ...msg,
+            content: 'Sorry, I encountered an error while processing your request. Please make sure the backend server is running and try again.',
+            isStreaming: false,
+          };
+        })
+      );
+      
       setIsLoading(false);
-    });
+      abortControllerRef.current = null;
+    }
   };
 
   const handleStopGeneration = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+      setIsLoading(false);
+      
+      // Mark the last streaming message as complete
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.isStreaming) {
+            return { ...msg, isStreaming: false };
+          }
+          return msg;
+        })
+      );
     }
   };
 
-  const handleNewChat = () => {
-    setMessages([
-      {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: "Hello! I'm an AI assistant. How can I help you today?",
-      },
-    ]);
-    setCurrentChatId(Date.now().toString());
+  const handleNewChat = async () => {
+    try {
+      // Create new session on backend
+      const { sessionId: newSessionId } = await apiService.createSession();
+      setSessionId(newSessionId);
+      
+      setMessages([
+        {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "Hello! I'm ECEasy, your AI assistant for ECE students. How can I help you today?",
+        },
+      ]);
+      setCurrentChatId(newSessionId);
+    } catch (error) {
+      console.error('Error creating new chat:', error);
+      
+      // Fallback to local-only new chat
+      setMessages([
+        {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "Hello! I'm ECEasy, your AI assistant for ECE students. How can I help you today?",
+        },
+      ]);
+      setCurrentChatId(Date.now().toString());
+      setSessionId(undefined);
+    }
   };
 
-  const handleSelectChat = (chatId: string) => {
+  const handleSelectChat = async (chatId: string) => {
     setCurrentChatId(chatId);
-    // In a real app, you would load the messages for the selected chat
-    setMessages([
-      {
-        id: '1',
-        role: 'assistant',
-        content: `This is the chat history for conversation ${chatId}. In a real implementation, messages would be loaded from storage.`,
-      },
-    ]);
+    setSessionId(chatId);
+    
+    try {
+      // Load chat history from backend
+      const history = await apiService.getChatHistory(chatId);
+      const loadedMessages: Message[] = history.map((msg, idx) => ({
+        id: `${chatId}-${idx}`,
+        role: msg.role,
+        content: msg.content,
+        sources: msg.sources?.map((src) => ({
+          title: src.title,
+          url: src.metadata?.source || '#',
+          snippet: src.content,
+        })),
+        relatedQuestions: msg.relatedQuestions,
+      }));
+      
+      setMessages(loadedMessages.length > 0 ? loadedMessages : [
+        {
+          id: '1',
+          role: 'assistant',
+          content: "Hello! I'm ECEasy, your AI assistant for ECE students. How can I help you today?",
+        },
+      ]);
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      
+      // Fallback message
+      setMessages([
+        {
+          id: '1',
+          role: 'assistant',
+          content: `Unable to load chat history. Please make sure the backend server is running.`,
+        },
+      ]);
+    }
   };
 
   return (

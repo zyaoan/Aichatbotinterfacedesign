@@ -2,7 +2,7 @@ import { Send, Paperclip, X, Square } from 'lucide-react';
 import { useState, KeyboardEvent, useRef } from 'react';
 
 interface MessageInputProps {
-  onSendMessage: (message: string) => void;
+  onSendMessage: (message: string, files?: File[]) => void;
   disabled?: boolean;
   isLoading?: boolean;
   onStopGeneration?: () => void;
@@ -15,7 +15,7 @@ export function MessageInput({ onSendMessage, disabled, isLoading, onStopGenerat
 
   const handleSend = () => {
     if ((message.trim() || uploadedFiles.length > 0) && !disabled) {
-      onSendMessage(message);
+      onSendMessage(message, uploadedFiles.length > 0 ? uploadedFiles : undefined);
       setMessage('');
       setUploadedFiles([]);
     }
