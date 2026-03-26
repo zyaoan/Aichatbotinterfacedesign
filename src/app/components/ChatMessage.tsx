@@ -1,162 +1,26 @@
-import { Bot, User, BookText, MessageSquareQuote, ExternalLink } from 'lucide-react';
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeRaw from 'rehype-raw';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import Mermaid from '@/app/components/Mermaid';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/app/components/ui/popover';
-import type { Source, Relate } from '@/app/utils/parse-streaming';
+import { Bot, User, ExternalLink, BookOpen, HelpCircle } from 'lucide-react';
 
 interface ChatMessageProps {
   role: 'user' | 'assistant';
-  /** Plain text for user messages; parsed markdown for assistant messages */
   content: string;
-  /** RAG + web sources, present on assistant messages once stream begins */
-  sources?: Source[];
-  /** Related questions, present after the stream finishes */
-  relates?: Relate[] | null;
-  /** True while the LLM is still streaming this message */
-  isStreaming?: boolean;
-  /** Callback when the user clicks a related question chip */
-  onRelatedQuestion?: (question: string) => void;
+  sources?: Array<{
+    title: string;
+    url: string;
+    snippet?: string;
+  }>;
+  relatedQuestions?: string[];
+  onQuestionClick?: (question: string) => void;
 }
 
-// ── Citation popover bubble ──────────────────────────────────────────────────
-function CitationBubble({ index, source }: { index: number; source: Source }) {
-  const domain =
-    source.url.startsWith('http://') || source.url.startsWith('https://')
-      ? new URL(source.url).hostname
-      : source.url;
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <span
-          title={source.name}
-          className="inline-block cursor-pointer transform scale-75 origin-top-left font-medium bg-amber-200 hover:bg-amber-300 w-5 h-5 text-center text-xs leading-5 rounded-full align-top"
-        >
-          {index}
-        </span>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="max-w-sm flex flex-col gap-2 bg-white shadow-lg text-xs z-50"
-      >
-        <div className="font-medium text-ellipsis overflow-hidden whitespace-nowrap">
-          {source.name}
-        </div>
-        <div className="text-zinc-500 line-clamp-4 break-words">{source.snippet}</div>
-        <div className="flex items-center gap-2 overflow-hidden">
-          <img
-            className="h-3 w-3 flex-none"
-            alt={domain}
-            src={`https://www.google.com/s2/favicons?domain=${domain}&sz=16`}
-          />
-          <a
-            href={source.url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-blue-500 truncate hover:underline"
-          >
-            {source.url}
-          </a>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ── Sources grid ─────────────────────────────────────────────────────────────
-function SourcesPanel({ sources }: { sources: Source[] }) {
-  if (sources.length === 0) return null;
-  return (
-    <div className="mt-4">
-      <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 mb-2">
-        <BookText size={14} /> Sources
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {sources.map((source, i) => {
-          const domain =
-            source.url.startsWith('http://') || source.url.startsWith('https://')
-              ? new URL(source.url).hostname
-              : source.url;
-          const displayName = source.name.includes(', ..\\localData')
-            ? source.name.replace(/,.*\\localData\\.*\\/, ', ')
-            : source.name;
-          return (
-            <div
-              key={source.id ?? i}
-              className="relative text-xs py-3 px-3 bg-amber-100 hover:bg-amber-200 rounded-lg flex flex-col gap-1"
-            >
-              <a href={source.url} target="_blank" rel="noreferrer" className="absolute inset-0" />
-              <div className="font-medium text-zinc-900 truncate">{displayName}</div>
-              <div className="flex items-center gap-1 text-zinc-400 overflow-hidden">
-                <img
-                  className="h-3 w-3 flex-none"
-                  alt={domain}
-                  src={`https://www.google.com/s2/favicons?domain=${domain}&sz=16`}
-                />
-                <span className="truncate">{i + 1} – {domain}</span>
-                <ExternalLink size={10} className="flex-none" />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Related questions ─────────────────────────────────────────────────────────
-function RelatedPanel({
-  relates,
-  onSelect,
-}: {
-  relates: Relate[];
-  onSelect?: (q: string) => void;
-}) {
-  if (relates.length === 0) return null;
-  return (
-    <div className="mt-4">
-      <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 mb-2">
-        <MessageSquareQuote size={14} /> Related Questions
-      </div>
-      <div className="flex flex-col gap-1">
-        {relates.map(({ question }) => (
-          <button
-            key={question}
-            onClick={() => onSelect?.(question)}
-            className="text-left text-sm px-3 py-2 rounded-lg bg-amber-100 hover:bg-amber-200 text-gray-800 transition-colors"
-          >
-            {question}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Main component ────────────────────────────────────────────────────────────
-export function ChatMessage({
-  role,
-  content,
-  sources = [],
-  relates,
-  isStreaming = false,
-  onRelatedQuestion,
-}: ChatMessageProps) {
+export function ChatMessage({ role, content, sources, relatedQuestions, onQuestionClick }: ChatMessageProps) {
   const isUser = role === 'user';
 
   return (
-    <div className={`flex gap-4 px-4 py-6 ${isUser ? 'bg-amber-100' : 'bg-amber-50'}`}>
+    <div
+      className={`flex gap-4 px-4 py-6 ${
+        isUser ? 'bg-amber-100' : 'bg-amber-50'
+      }`}
+    >
       <div className="max-w-4xl mx-auto w-full flex gap-4">
         {/* Avatar */}
         <div className="flex-shrink-0">
@@ -171,95 +35,84 @@ export function ChatMessage({
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0 pt-1">
-          {isUser ? (
-            // User messages: plain pre-wrapped text
-            <p className="text-gray-900 leading-7 whitespace-pre-wrap">{content}</p>
-          ) : (
-            <>
-              {/* Assistant messages: rich Markdown with citations */}
-              <div className="prose prose-sm max-w-none">
-                <Markdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeRaw, rehypeKatex]}
-                  components={{
-                    // Render citation links as inline bubble popovers
-                    a: ({ href, children, ...props }: any) => {
-                      const idx = href ? parseInt(href, 10) : NaN;
-                      const source = !isNaN(idx) ? sources[idx - 1] : undefined;
-                      if (source) {
-                        return <CitationBubble index={idx} source={source} />;
-                      }
-                      return (
-                        <a href={href} target="_blank" rel="noreferrer" {...props}>
-                          {children}
-                        </a>
-                      );
-                    },
-                    // Syntax-highlighted code blocks (+ Mermaid diagrams)
-                    code({ node, inline, className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const isMermaid = match?.[1] === 'mermaid';
+        {/* Message Content */}
+        <div className="flex-1 min-w-0 space-y-4">
+          {/* Section 1: Response */}
+          <div className="bg-white rounded-lg p-4 border border-amber-200">
+            <div className="prose max-w-none">
+              <p className="text-gray-900 leading-7 whitespace-pre-wrap m-0">{content}</p>
+            </div>
+          </div>
 
-                      if (!inline && isMermaid) {
-                        return (
-                          <Mermaid chart={String(children).replace(/\n$/, '')} />
-                        );
-                      }
-
-                      return !inline && match ? (
-                        <SyntaxHighlighter
-                          style={dracula}
-                          PreTag="div"
-                          language={match[1]}
-                          {...props}
-                        >
-                          {String(children).replace(/\n$/, '')}
-                        </SyntaxHighlighter>
-                      ) : (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      );
-                    },
-                  }}
-                >
-                  {/* Normalise LaTeX delimiters and chain-of-thought tags */}
-                  {content
-                    .replace(/\\\\\[/g, '$$')
-                    .replace(/\\\\]/g, '$$')
-                    .replace(/\\\\\(/g, '$$')
-                    .replace(/\\\\\)/g, '$$')
-                    .replace(/\\\[/g, '$$')
-                    .replace(/\\]/g, '$$')
-                    .replace(/\\\(/g, '$$')
-                    .replace(/\\\)/g, '$$')
-                    .replace(/<think>/g, '<details><summary>=== Chain of Thought ===</summary>')
-                    .replace(/<\/think>/g, '</details>')}
-                </Markdown>
+          {/* Section 2: Cited Sources */}
+          {sources && sources.length > 0 && (
+            <div className="bg-white rounded-lg p-4 border border-amber-200">
+              <div className="flex items-center gap-2 mb-3">
+                <BookOpen size={18} className="text-amber-600" />
+                <h3 className="text-sm font-semibold text-gray-900 m-0">
+                  Cited Sources ({sources.length})
+                </h3>
               </div>
+              <div className="space-y-2">
+                {sources.map((source, index) => (
+                  <a
+                    key={index}
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block p-3 bg-amber-50 rounded-lg hover:bg-amber-100 transition-all group border border-amber-100 hover:border-amber-200"
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs font-medium">
+                            {index + 1}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900 group-hover:text-amber-700 transition-colors">
+                            {source.title}
+                          </span>
+                          <ExternalLink size={14} className="text-gray-400 group-hover:text-amber-600 flex-shrink-0" />
+                        </div>
+                        {source.snippet && (
+                          <p className="text-xs text-gray-600 mt-2 ml-7 line-clamp-2 m-0">
+                            {source.snippet}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
-              {/* Streaming bounce indicator */}
-              {isStreaming && (
-                <div className="flex gap-1 mt-2">
-                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              )}
-
-              {/* Sources — shown once we have them, even during streaming */}
-              {sources.length > 0 && <SourcesPanel sources={sources} />}
-
-              {/* Related questions — shown only after streaming completes */}
-              {!isStreaming && relates && <RelatedPanel relates={relates} onSelect={onRelatedQuestion} />}
-            </>
+          {/* Section 3: Related Questions */}
+          {relatedQuestions && relatedQuestions.length > 0 && (
+            <div className="bg-white rounded-lg p-4 border border-amber-200">
+              <div className="flex items-center gap-2 mb-3">
+                <HelpCircle size={18} className="text-amber-600" />
+                <h3 className="text-sm font-semibold text-gray-900 m-0">
+                  Related Questions
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {relatedQuestions.map((question, index) => (
+                  <button
+                    key={index}
+                    onClick={() => onQuestionClick?.(question)}
+                    className="text-left p-3 bg-amber-50 rounded-lg hover:bg-amber-100 transition-all text-sm text-gray-700 hover:text-amber-800 border border-amber-100 hover:border-amber-200 hover:shadow-sm"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5 flex-shrink-0">→</span>
+                      <span className="flex-1">{question}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
     </div>
   );
 }
-
-
