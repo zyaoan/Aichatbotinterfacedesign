@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { ChatMessage } from '../components/ChatMessage';
 import { MessageInput } from '../components/MessageInput';
+import { ModelSelector } from '../components/ModelSelector';
 import { Menu } from 'lucide-react';
 import logo from '../../imports/logo_noname_(1).svg';
 import { apiService, StreamChunk } from '../../services/api.service';
@@ -19,18 +20,22 @@ interface Message {
   isStreaming?: boolean;
 }
 
+type ModelType = 'openai' | 'deepseek' | 'ollama';
+
 export function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "Hello! I'm ECEasy, your AI assistant for ECE students. How can I help you today?",
+      content: "Hello! I'm ECEasy, your AI assistant for ECE students. How can I help you today?\n\nℹ️ **Note:** Backend is not connected. The app is running in demo mode. To connect to the ECEasy backend:\n1. Make sure the backend server is running (default: http://localhost:8000)\n2. Check your `.env` file has the correct `VITE_API_BASE_URL`\n3. Restart the dev server after changing `.env`\n\nOnce connected, I'll be able to search the knowledge base and provide real answers!",
     },
   ]);
   const [currentChatId, setCurrentChatId] = useState('1');
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [backendMode, setBackendMode] = useState<'connected' | 'offline' | 'unknown'>('unknown');
+  const [selectedModel, setSelectedModel] = useState<ModelType>('openai');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -72,6 +77,7 @@ export function ChatPage() {
           message: content,
           sessionId: sessionId,
           files: files,
+          model: selectedModel,
         },
         (chunk: StreamChunk) => {
           // Update the assistant message based on chunk type
@@ -101,18 +107,20 @@ export function ChatPage() {
         }
       );
 
+      setBackendMode('connected');
       setIsLoading(false);
       abortControllerRef.current = null;
     } catch (error) {
       console.error('Error sending message:', error);
+      setBackendMode('offline');
       
-      // Update assistant message with error
+      // Update assistant message with helpful error or demo response
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== assistantId) return msg;
           return {
             ...msg,
-            content: 'Sorry, I encountered an error while processing your request. Please make sure the backend server is running and try again.',
+            content: `I see you asked: "${content}"\n\n⚠️ **Backend Connection Issue**\n\nThe ECEasy backend is not currently connected. To enable full functionality:\n\n1. Make sure the backend server is running\n2. Check that VITE_API_BASE_URL in .env matches your backend URL\n3. Verify CORS is configured on the backend\n\n**For now, I'm running in demo mode.** Once you connect the backend, I'll be able to:\n- Search the FAISS knowledge base\n- Provide source citations\n- Generate related questions\n- Process uploaded files\n\n*Check the browser console for more details.*`,
             isStreaming: false,
           };
         })
@@ -245,15 +253,29 @@ export function ChatPage() {
             </div>
 
             {/* Center: App Name */}
-            <div className="absolute left-1/2 transform -translate-x-1/2">
+            <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
               <h1 className="text-2xl font-bold">
                 <span style={{ color: '#1e3a8a' }}>EC</span>
                 <span style={{ color: '#3b82f6' }}>Easy</span>
               </h1>
+              {backendMode === 'offline' && (
+                <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full">
+                  Demo Mode
+                </span>
+              )}
+              {backendMode === 'connected' && (
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                  Connected
+                </span>
+              )}
             </div>
 
-            {/* Right: Spacer for balance */}
-            <div className="w-[88px]"></div>
+            {/* Right: Model Selector */}
+            <ModelSelector
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
+            />
           </div>
         </div>
 

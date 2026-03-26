@@ -19,6 +19,7 @@ interface SidebarProps {
 export function Sidebar({ onNewChat, currentChatId, onSelectChat, isOpen, setIsOpen }: SidebarProps) {
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [backendAvailable, setBackendAvailable] = useState(false);
 
   // Load chat sessions from backend on mount
   useEffect(() => {
@@ -38,14 +39,14 @@ export function Sidebar({ onNewChat, currentChatId, onSelectChat, isOpen, setIsO
       }));
       
       setChats(formattedChats);
+      setBackendAvailable(true);
     } catch (error) {
-      console.error('Error loading sessions:', error);
+      console.warn('Backend sessions API not available - using local mode:', error);
+      setBackendAvailable(false);
       
       // Use mock data as fallback if backend is not available
       setChats([
-        { id: '1', title: 'ECE course prerequisites', timestamp: 'Today' },
-        { id: '2', title: 'Department requirements', timestamp: 'Today' },
-        { id: '3', title: 'Program information', timestamp: 'Yesterday' },
+        { id: '1', title: 'Welcome to ECEasy', timestamp: 'Today' },
       ]);
     } finally {
       setIsLoadingSessions(false);
@@ -67,8 +68,10 @@ export function Sidebar({ onNewChat, currentChatId, onSelectChat, isOpen, setIsO
 
   const handleNewChat = () => {
     onNewChat();
-    // Reload sessions after creating new chat
-    setTimeout(() => loadSessions(), 500);
+    // Only reload sessions if backend is available
+    if (backendAvailable) {
+      setTimeout(() => loadSessions(), 500);
+    }
   };
 
   return (

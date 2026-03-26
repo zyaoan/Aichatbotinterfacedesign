@@ -15,6 +15,7 @@ Modern AI chatbot interface for ECEasy - An intelligent assistant designed speci
 
 ### 💬 Chat Interface
 - **Real-time Streaming**: Live response streaming from AI models
+- **LLM Selection**: Switch between OpenAI, DeepSeek, and Ollama models
 - **File Upload**: Support for PDF and DOC/DOCX file uploads
 - **Source Citations**: Display references from knowledge base
 - **Related Questions**: AI-generated follow-up suggestions

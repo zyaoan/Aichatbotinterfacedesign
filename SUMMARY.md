@@ -8,6 +8,7 @@ A production-ready React frontend for the ECEasy AI chatbot that integrates seam
 
 ### ✅ Complete Chat Interface
 - **Real-time streaming responses** - Character-by-character display
+- **LLM model selection** - Switch between OpenAI, DeepSeek, and Ollama
 - **Source citations** - Display references from FAISS knowledge base
 - **Related questions** - AI-generated follow-up suggestions
 - **File uploads** - Support for PDF and DOC/DOCX files
